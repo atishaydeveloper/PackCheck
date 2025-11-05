@@ -22,6 +22,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL } from '../config';
 
 const AlternativesDialog = ({ open, onClose, scanResult }) => {
   const { user } = useAuth();
@@ -34,7 +35,7 @@ const AlternativesDialog = ({ open, onClose, scanResult }) => {
     setError(null);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/scan/alternatives', {
+      const response = await axios.post(`${API_URL}/api/scan/alternatives`, {
         nutrition_data: {
           ...scanResult.extraction.nutrition_data,
           product_name: scanResult.extraction.nutrition_data.product_name || 'Unknown Product',

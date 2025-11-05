@@ -38,6 +38,7 @@ import remarkGfm from 'remark-gfm';
 import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../contexts/GamificationContext';
 import AlternativesDialog from '../components/AlternativesDialog';
+import { API_URL } from '../config';
 
 function ScanPage() {
   const { addToHistory, updateDailyIntake } = useAuth();
@@ -78,7 +79,7 @@ function ScanPage() {
     formData.append('image', selectedImage);
 
     try {
-      const response = await axios.post('/api/scan/', formData, {
+      const response = await axios.post(`${API_URL}/api/scan/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
