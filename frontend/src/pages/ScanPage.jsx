@@ -78,23 +78,29 @@ function ScanPage() {
     const formData = new FormData();
     formData.append('image', selectedImage);
 
+    console.log('📤 Sending scan request to:', `${API_URL}/api/scan/`);
+    console.log('📤 FormData has image:', formData.has('image'));
+    console.log('📤 Selected file:', selectedImage.name, selectedImage.type, selectedImage.size, 'bytes');
+
     try {
       const response = await axios.post(`${API_URL}/api/scan/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 60000, // 60 second timeout (increased for multi-pass OCR)
+        timeout: 180000, // 180 second timeout (3 minutes for OCR + AI processing on free tier)
       });
 
-      console.log('Scan result:', response.data);
+      console.log('✅ Scan result:', response.data);
       setScanResult(response.data);
       // Automatically save to history
       addToHistory(response.data);
       // Trigger gamification
       onScan(response.data);
     } catch (err) {
-      console.error('Scan error:', err);
-      setError(err.response?.data?.message || err.message || 'Error scanning image. Please try again.');
+      console.error('❌ Scan error:', err);
+      console.error('❌ Error response:', err.response?.data);
+      console.error('❌ Error status:', err.response?.status);
+      setError(err.response?.data?.error || err.response?.data?.message || err.message || 'Error scanning image. Please try again.');
     } finally {
       setScanning(false);
     }
@@ -197,7 +203,10 @@ function ScanPage() {
             {scanning && (
               <Box sx={{ mt: 2 }}>
                 <Typography variant="caption" color="text.secondary">
-                  Extracting with Tesseract OCR...
+                  Processing your image with Tesseract OCR + AI analysis...
+                </Typography>
+                <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                  This may take 1-2 minutes on free tier. Please be patient! ⏳
                 </Typography>
                 <LinearProgress sx={{ mt: 1 }} />
               </Box>
