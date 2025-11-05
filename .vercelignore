@@ -1,0 +1,48 @@
+# Virtual environments
+backend/venv
+venv
+env
+ENV
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment variables (these should be set in Vercel dashboard)
+backend/.env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+
+# Uploads directory (use Vercel's file storage or S3 instead)
+backend/uploads
+
+# Git
+.git
+.gitignore
+
+# History
+.history
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development files
+tests/
+docs/
+*.md
