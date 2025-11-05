@@ -4,14 +4,11 @@ services:
     name: packcheck-api
     env: python
     region: oregon
-    buildCommand: |
-      cd backend
-      pip install -r requirements.txt
-      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng
-    startCommand: cd backend && python app.py
+    buildCommand: ./render-build.sh
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 app:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9
+        value: 3.11
       - key: PORT
         value: 5000
       - key: DATABASE_URL

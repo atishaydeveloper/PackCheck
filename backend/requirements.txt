@@ -6,10 +6,10 @@ uvicorn==0.27.0
 gunicorn==21.2.0
 
 # OCR and Image Processing
-pytesseract==0.3.10
-opencv-python==4.9.0.80
-Pillow==10.2.0
-numpy==1.26.3
+pytesseract==0.3.13
+opencv-python-headless==4.10.0.84
+Pillow==11.0.0
+numpy==1.26.4
 
 # Database
 SQLAlchemy==2.0.25
@@ -22,8 +22,8 @@ python-multipart==0.0.6
 requests==2.31.0
 
 # ML and Data Processing
-scikit-learn==1.4.0
-pandas==2.2.0
+scikit-learn==1.5.2
+pandas==2.2.3
 
 # Authentication and Security
 python-jose[cryptography]==3.3.0
