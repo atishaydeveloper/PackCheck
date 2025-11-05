@@ -3,7 +3,7 @@ PackCheck - AI-Powered Food Label Verification System
 Main application entry point
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
@@ -58,6 +58,17 @@ def create_app():
                 'personalization': '/api/personalize',
                 'community': '/api/community'
             }
+        })
+
+    # Test endpoint for debugging uploads
+    @app.route('/api/test-upload', methods=['POST'])
+    def test_upload():
+        print(f"DEBUG Test - Request files: {request.files}")
+        print(f"DEBUG Test - Request form: {request.form}")
+        return jsonify({
+            'received': 'ok',
+            'files_received': list(request.files.keys()),
+            'form_received': list(request.form.keys())
         })
 
     # Error handlers

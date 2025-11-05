@@ -1,87 +1,153 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Container,
-  Box,
-  Button,
-  ThemeProvider,
-  createTheme,
-  CssBaseline
-} from '@mui/material';
-import ScanPage from './pages/ScanPage';
-import DashboardPage from './pages/DashboardPage';
-import ProfilePage from './pages/ProfilePage';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { GamificationProvider } from './contexts/GamificationContext';
+import { modernTheme } from './theme';
 
-// Create theme
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#2e7d32', // Green for health/nutrition
-    },
-    secondary: {
-      main: '#ff9800', // Orange for warnings/alerts
-    },
-  },
-  typography: {
-    h4: {
-      fontWeight: 600,
-    },
-  },
-});
+// Pages
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import DashboardPage from './pages/DashboardPage';
+import ScanPage from './pages/ScanPage';
+import ProfilePage from './pages/ProfilePage';
+import TrackerPage from './pages/TrackerPage';
+import HistoryPage from './pages/HistoryPage';
+import InsightsPage from './pages/InsightsPage';
+import Layout from './components/Layout';
+import LevelUpNotification from './components/LevelUpNotification';
+import AchievementNotification from './components/AchievementNotification';
+
+// Protected Route Component
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Layout>{children}</Layout>;
+}
+
+// Public Route (redirect to dashboard if already logged in)
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+function AppRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <Routes>
+      {/* Home Page - Public */}
+      <Route path="/" element={<HomePage />} />
+
+      {/* Public Routes */}
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicRoute>
+            <SignupPage />
+          </PublicRoute>
+        }
+      />
+
+      {/* Protected Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/scan"
+        element={
+          <ProtectedRoute>
+            <ScanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tracker"
+        element={
+          <ProtectedRoute>
+            <TrackerPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/history"
+        element={
+          <ProtectedRoute>
+            <HistoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/insights"
+        element={
+          <ProtectedRoute>
+            <InsightsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* 404 - Redirect to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={modernTheme}>
       <CssBaseline />
-      <Router>
-        <Box sx={{ flexGrow: 1 }}>
-          <AppBar position="static">
-            <Toolbar>
-              <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                PackCheck
-              </Typography>
-              <Button color="inherit" component={Link} to="/">
-                Scan
-              </Button>
-              <Button color="inherit" component={Link} to="/dashboard">
-                Dashboard
-              </Button>
-              <Button color="inherit" component={Link} to="/profile">
-                Profile
-              </Button>
-            </Toolbar>
-          </AppBar>
-
-          <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Routes>
-              <Route path="/" element={<ScanPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-            </Routes>
-          </Container>
-
-          <Box
-            component="footer"
-            sx={{
-              py: 3,
-              px: 2,
-              mt: 'auto',
-              backgroundColor: (theme) =>
-                theme.palette.mode === 'light'
-                  ? theme.palette.grey[200]
-                  : theme.palette.grey[800],
-              textAlign: 'center',
-            }}
-          >
-            <Typography variant="body2" color="text.secondary">
-              PackCheck - AI-Powered Food Label Verification | FSSAI Compliant
-            </Typography>
-          </Box>
-        </Box>
-      </Router>
+      <AuthProvider>
+        <GamificationProvider>
+          <Router>
+            <AppRoutes />
+            <LevelUpNotification />
+            <AchievementNotification />
+          </Router>
+        </GamificationProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

@@ -1,6 +1,6 @@
 """
 Scan API - Handle food label image uploads and processing
-Architecture: Tesseract for extraction, AI for analysis, FSSAI/WHO for compliance
+Enhanced with Gemini AI
 """
 
 from flask import Blueprint, request, jsonify
@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from services.ocr_service import OCRService, validated_results
 from services.fssai_service import FSSAIService
+from services.gemini_service import GeminiService
 
 scan_bp = Blueprint('scan', __name__)
 
@@ -28,17 +29,16 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ocr_service = OCRService()
 fssai_service = FSSAIService()
 
-# Initialize Gemini AI (optional - with fallback)
+# Initialize Gemini AI (with fallback if API key not configured)
 try:
-    from services.gemini_service import GeminiService
     gemini_service = GeminiService()
     USE_GEMINI = True
-    print("✓ Gemini AI initialized successfully (for reports & recommendations)")
+    print("✓ Gemini AI initialized successfully")
 except Exception as e:
     gemini_service = None
     USE_GEMINI = False
     print(f"⚠ Gemini AI not initialized: {e}")
-    print("  AI reports will be unavailable (OCR & FSSAI compliance still work)")
+    print("  Falling back to Tesseract OCR")
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -49,20 +49,18 @@ def allowed_file(filename):
 def scan_label():
     """
     Main endpoint for scanning food labels
-
-    ARCHITECTURE:
-    1. Tesseract OCR → Extract text & nutrition data
-    2. FSSAI Service → Verify compliance with actual regulations
-    3. Gemini AI → Generate insights, reports, recommendations (optional)
+    Uses Gemini AI if available, falls back to Tesseract OCR
 
     Expects:
         - image file in multipart/form-data
+        - optional: use_ai (true/false) - force AI or OCR
         - optional: claims (list of claims made on packaging)
 
     Returns:
-        - Extracted nutrition data (Tesseract)
-        - FSSAI/WHO compliance verification (actual rules)
-        - AI-generated insights & recommendations (Gemini - if available)
+        - Extracted nutrition data
+        - FSSAI compliance verification
+        - AI-generated report (if Gemini is enabled)
+        - Confidence scores
     """
     print(f"DEBUG: Received request - Files: {request.files.keys()}, Form: {request.form.keys()}")
 
@@ -86,28 +84,49 @@ def scan_label():
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
 
-        # ============================================
-        # STEP 1: Extract text using Tesseract OCR
-        # ============================================
-        print(f"DEBUG: Step 1 - Extracting text with Tesseract OCR")
+        # Check if user wants to force AI or OCR
+        force_ai = request.form.get('use_ai', 'true').lower() == 'true'
+        use_gemini_for_scan = USE_GEMINI and force_ai
 
-        ocr_result = ocr_service.process_food_label(filepath)
-        nutrition_data = ocr_result.get('nutrition_facts', {})
-        ingredients = ocr_result.get('ingredients', [])
-        raw_text = ocr_result.get('raw_text', '')
-        serving_size = ocr_result.get('serving_size')
-        net_weight = ocr_result.get('net_weight')
-        servings_per_container = ocr_result.get('servings_per_container')
-        claims = request.form.getlist('claims') if 'claims' in request.form else []
-        ocr_confidence = ocr_result.get('confidence', {})
+        print(f"DEBUG: Using {'Gemini AI' if use_gemini_for_scan else 'Tesseract OCR'} for extraction")
 
-        print(f"DEBUG: Extracted nutrition data: {nutrition_data}")
+        # Extract nutrition data
+        if use_gemini_for_scan:
+            # Use Gemini AI for extraction
+            gemini_result = gemini_service.extract_nutrition_from_image(filepath)
 
-        # ============================================
-        # STEP 2: Verify with ACTUAL FSSAI/WHO rules
-        # ============================================
-        print(f"DEBUG: Step 2 - Verifying with FSSAI/WHO regulations")
+            if gemini_result['success']:
+                extracted_data = gemini_result['data']
+                nutrition_data = extracted_data.get('nutrition_facts', {})
+                ingredients = extracted_data.get('ingredients', [])
+                claims = extracted_data.get('claims', [])
 
+                # Add user-provided claims
+                if 'claims' in request.form:
+                    user_claims = request.form.getlist('claims')
+                    claims.extend(user_claims)
+
+                extraction_source = 'gemini-ai'
+                extraction_confidence = 0.95  # Gemini typically high confidence
+            else:
+                # Gemini failed, fall back to Tesseract
+                print(f"DEBUG: Gemini extraction failed: {gemini_result.get('error')}")
+                ocr_result = ocr_service.process_food_label(filepath)
+                nutrition_data = ocr_result.get('nutrition_facts', {})
+                ingredients = ocr_result.get('ingredients', [])
+                claims = request.form.getlist('claims') if 'claims' in request.form else []
+                extraction_source = 'tesseract-ocr'
+                extraction_confidence = ocr_result.get('confidence', {}).get('overall', 0.0)
+        else:
+            # Use traditional Tesseract OCR
+            ocr_result = ocr_service.process_food_label(filepath)
+            nutrition_data = ocr_result.get('nutrition_facts', {})
+            ingredients = ocr_result.get('ingredients', [])
+            claims = request.form.getlist('claims') if 'claims' in request.form else []
+            extraction_source = 'tesseract-ocr'
+            extraction_confidence = ocr_result.get('confidence', {}).get('overall', 0.0)
+
+        # Verify FSSAI compliance
         fssai_verification = fssai_service.verify_all_claims(nutrition_data, claims)
 
         # Check allergens if ingredients found
@@ -115,78 +134,33 @@ def scan_label():
         if ingredients:
             allergen_info = fssai_service.detect_allergens(ingredients)
 
-        # ============================================
-        # STEP 3: Generate AI insights (if available)
-        # ============================================
-        ai_insights = {}
-
+        # Generate AI report if Gemini is available
+        ai_report = None
         if USE_GEMINI:
-            print(f"DEBUG: Step 3 - Generating AI insights with Gemini")
-
             try:
-                # Prepare complete nutrition data with metadata for AI
-                complete_nutrition_data = {
-                    **nutrition_data,
-                    'serving_size': serving_size,
-                    'net_weight': net_weight,
-                    'servings_per_container': servings_per_container,
-                    'ingredients': ingredients
-                }
-
-                # Generate comprehensive AI report
                 report_result = gemini_service.generate_comprehensive_report(
-                    complete_nutrition_data,
+                    nutrition_data,
                     fssai_verification
                 )
                 if report_result['success']:
-                    ai_insights['comprehensive_report'] = report_result['report']
-
-                # Analyze ingredients safety
-                if ingredients:
-                    ingredient_analysis = gemini_service.analyze_ingredients_safety(ingredients)
-                    if ingredient_analysis['success']:
-                        ai_insights['ingredient_analysis'] = ingredient_analysis['analysis']
-
+                    ai_report = report_result['report']
             except Exception as e:
-                print(f"DEBUG: AI insights generation failed: {e}")
-                ai_insights['error'] = str(e)
-        else:
-            print(f"DEBUG: Step 3 - Skipped (Gemini not configured)")
+                print(f"DEBUG: AI report generation failed: {e}")
 
-        # ============================================
         # Compile response
-        # ============================================
         response = {
             'success': True,
-
-            # Extraction (Tesseract)
-            'extraction': {
-                'source': 'tesseract-ocr',
-                'nutrition_data': nutrition_data,
-                'ingredients': ingredients,
-                'serving_size': serving_size,
-                'net_weight': net_weight,
-                'servings_per_container': servings_per_container,
-                'raw_text': raw_text,
-                'confidence': ocr_confidence
-            },
-
-            # Compliance (FSSAI/WHO actual rules)
-            'compliance': {
-                'fssai_verification': fssai_verification,
-                'allergen_info': allergen_info,
-                'source': 'fssai-who-regulations'
-            },
-
-            # AI Insights (Gemini)
-            'ai_insights': ai_insights if USE_GEMINI else {
-                'available': False,
-                'message': 'Add GEMINI_API_KEY to enable AI insights'
-            },
-
-            # Overall recommendation
+            'extraction_source': extraction_source,
+            'ai_enabled': USE_GEMINI,
+            'nutrition_data': nutrition_data,
+            'ingredients': ingredients,
+            'claims_detected': claims,
+            'fssai_verification': fssai_verification,
+            'allergen_info': allergen_info,
+            'confidence': extraction_confidence,
+            'ai_report': ai_report,
             'recommendation': _generate_recommendation(
-                ocr_confidence.get('overall', 0.0),
+                extraction_confidence,
                 fssai_verification
             )
         }
@@ -377,44 +351,6 @@ def ask_nutrition_question():
             data.get('context')
         )
         return jsonify(answer), 200
-
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@scan_bp.route('/alternatives', methods=['POST'])
-def get_healthier_alternatives():
-    """
-    Get healthier alternative product suggestions
-
-    Expects:
-        - JSON with nutrition_data, fssai_verification
-        - Optional: user_profile
-
-    Returns:
-        - AI-generated healthier alternatives
-    """
-    if not USE_GEMINI:
-        return jsonify({
-            'success': False,
-            'error': 'Gemini AI not configured. Please add GEMINI_API_KEY to environment.'
-        }), 503
-
-    data = request.get_json()
-
-    if not data or 'nutrition_data' not in data:
-        return jsonify({'error': 'Nutrition data required'}), 400
-
-    try:
-        alternatives = gemini_service.generate_healthier_alternatives(
-            data['nutrition_data'],
-            data.get('fssai_verification', {}),
-            data.get('user_profile')
-        )
-
-        return jsonify(alternatives), 200
 
     except Exception as e:
         return jsonify({
