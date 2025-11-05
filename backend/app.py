@@ -82,8 +82,11 @@ def create_app():
 
     return app
 
+# Create app instance for WSGI servers (Gunicorn)
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
+    # This is only used when running locally with `python app.py`
     app.run(
         host='0.0.0.0',
         port=int(os.getenv('PORT', 5000)),
