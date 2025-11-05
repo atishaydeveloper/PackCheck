@@ -5,7 +5,7 @@ services:
     env: python
     region: oregon
     buildCommand: ./render-build.sh
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --chdir backend app:app
+    startCommand: ./start.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
